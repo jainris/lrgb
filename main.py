@@ -11,7 +11,7 @@ from torch_geometric.graphgym.config import (cfg, dump_cfg,
                                              makedirs_rm_exist)
 from torch_geometric.graphgym.loader import create_loader
 from torch_geometric.graphgym.logger import set_printing
-from torch_geometric.graphgym.optimizer import create_optimizer, \
+from torch_geometric.graphgym.optim import create_optimizer, \
     create_scheduler, OptimizerConfig, SchedulerConfig
 from torch_geometric.graphgym.model_builder import create_model
 from torch_geometric.graphgym.train import train
