@@ -453,13 +453,13 @@ class PriorityQueueV2(MemoryModule):
         output = self.output_proj(output)
         message_recepients = torch.arange(nb_nodes, device=output.device)  # [N]
 
-        new_read_strengths -= pop_given
+        new_read_strengths = new_read_strengths - pop_given
 
         new_memory_values = prev_state.memory_values + torch.unsqueeze(
             write_values, dim=1
         ) * torch.unsqueeze(prev_state.write_mask, dim=2)
         written_mask = new_read_strengths > SMALL_NUMBER
-        new_read_strengths *= written_mask
+        new_read_strengths = new_read_strengths * written_mask
         new_read_strengths = new_read_strengths + push_strengths * prev_state.write_mask
 
         # Assuming memory_size > depth of GNN stack
