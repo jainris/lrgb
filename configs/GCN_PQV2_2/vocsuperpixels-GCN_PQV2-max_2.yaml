@@ -48,7 +48,7 @@ memory:
   module: priority_queue_v2
   output_size: 220
   embedding_size: 220
-  memory_size: 8
+  memory_size: 16
   nb_heads: 8
   aggregation_technique: max
   nb_z_fts: 220
