@@ -19,7 +19,7 @@ train:
   eval_period: 1
   ckpt_period: 100
 model:
-  type: mem_gnn
+  type: mem_gnn_2
   loss_fun: cross_entropy
   graph_pooling: mean
 gnn:
@@ -45,10 +45,10 @@ optim:
   min_lr: 1e-5
 memory:
   module: priority_queue_v2
-  output_size: 128
-  embedding_size: 128
+  output_size: 300
+  embedding_size: 300
   memory_size: 8
   nb_heads: 8
   aggregation_technique: max
-  nb_z_fts: 128
+  nb_z_fts: 300
   send_to_all: False
