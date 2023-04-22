@@ -8,6 +8,7 @@ from torch_geometric.graphgym.init import init_weights
 
 from graphgps.layer.mem_processors import MemoryGCNConv
 from graphgps.layer.mem_processors import MemoryGCNConv_2
+from graphgps.layer.mem_processors import MemoryGINEConv
 from graphgps.layer.memory_module import memory_module_factory
 
 
@@ -44,9 +45,16 @@ class MemoryGNN(torch.nn.Module):
             nb_z_fts=cfg.memory.nb_z_fts,
         )
 
+        if cfg.gnn.layer_type == "gcnconv":
+            layer_model = MemoryGCNConv
+        elif cfg.gnn.layer_type == "gineconv":
+            layer_model = MemoryGINEConv
+        else:
+            raise ValueError("Got unexpected layer type: {}".format(cfg.gnn.layer_type))
+
         for _ in range(cfg.gnn.layers_mp):
             gnn_layers.append(
-                MemoryGCNConv(
+                layer_model(
                     in_channels=dim_in,
                     out_channels=cfg.gnn.dim_inner,
                     memory_module=memory_module,

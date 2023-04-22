@@ -1,14 +1,17 @@
 import torch
 
+from torch_geometric.graphgym.config import cfg
 from typing import Optional, Tuple
-from torch_geometric.typing import Adj, OptTensor, PairTensor
+from torch_geometric.typing import Adj, OptTensor, PairTensor, OptPairTensor
 from torch_geometric.data import Batch
 from torch import Tensor
 from torch_sparse import SparseTensor
 from graphgps.layer.memory_module import MemoryModule
 from graphgps.layer.memory_module import MemoryState
 
+from torch.nn import functional as F
 from torch_geometric.nn.conv.gcn_conv import GCNConv, gcn_norm
+from torch_geometric.nn.conv.gin_conv import GINEConv
 from torch_sparse import matmul, fill_diag, sum as sparsesum, mul
 from torch_scatter import scatter
 from graphgps.layer.memory_module import update_using_memory
@@ -231,6 +234,103 @@ class MemoryGCNConv_2(GCNConv):
         if self.bias is not None:
             out += self.bias
 
+        batch.x = out
+
+        return batch, next_mem_state
+
+    def aggregate(
+        self,
+        inputs: Tensor,
+        index: Tensor,
+        read_values: Tensor,
+        msg_recepients: Tensor,
+        nb_nodes: int,
+        ptr: Optional[Tensor] = None,
+        dim_size: Optional[int] = None,
+    ) -> Tensor:
+        if ptr is not None:
+            raise ValueError("Sparse tensors are not supported yet.")
+        else:
+            inputs, index = update_using_memory(
+                msgs=inputs,
+                index=index,
+                read_values=read_values,
+                message_recepients=msg_recepients,
+                nb_nodes=nb_nodes,
+                send_to_all=self.send_to_all,
+            )
+            return scatter(
+                inputs, index, dim=self.node_dim, dim_size=dim_size, reduce=self.aggr
+            )
+
+    def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
+        raise NotImplementedError
+
+
+class MemoryGINEConv(GINEConv):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        memory_module: MemoryModule,
+        nb_z_fts: int,
+        mem_msg_fts: int,
+        eps: float = 0.0,
+        train_eps: bool = False,
+        edge_dim: Optional[int] = None,
+        send_to_all: bool = False,
+        **kwargs
+    ):
+        nn = torch.nn.Sequential(
+            torch.nn.Linear(in_channels, out_channels),
+            torch.nn.ReLU(),
+            torch.nn.Linear(out_channels, out_channels),
+        )
+        super().__init__(nn, eps, train_eps, edge_dim, **kwargs)
+        self.memory_module = memory_module
+        self.fts_projection = torch.nn.Linear(in_channels, nb_z_fts)
+        self.mem_msg_projection = torch.nn.Linear(mem_msg_fts, in_channels)
+        self.send_to_all = send_to_all
+        self.dropout = cfg.gnn.dropout
+        self.residual = cfg.gnn.residual
+
+    def forward(
+        self,
+        batch: Batch,
+        prev_mem_state: Optional[MemoryState] = None,
+    ) -> Tuple[Batch, MemoryState]:
+        x = batch.x
+        edge_index = batch.edge_index
+        edge_attr = batch.edge_attr
+
+        if isinstance(x, Tensor):
+            x: OptPairTensor = (x, x)
+
+        z = self.fts_projection(batch.x)
+        z = leaky_relu(z)
+        read_values, msg_recepients, next_mem_state = self.memory_module(
+            z=z, batch=batch.batch, prev_state=prev_mem_state
+        )
+        read_values = leaky_relu(read_values)
+        read_values = self.mem_msg_projection(read_values)
+
+        # propagate_type: (x: OptPairTensor, edge_attr: OptTensor)
+        out = self.propagate(
+            edge_index,
+            x=x,
+            edge_attr=edge_attr,
+            read_values=read_values,
+            msg_recepients=msg_recepients,
+            nb_nodes=batch.x.shape[0],
+        )
+
+        out = F.relu(out)
+        out = F.dropout(out, p=self.dropout, training=self.training)
+
+        if self.residual:
+            out = out + batch.x  # residual connection
+
+        # return batch
         batch.x = out
 
         return batch, next_mem_state
