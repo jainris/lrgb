@@ -19,5 +19,7 @@ def mem_gnn_cfg(cfg):
     cfg.memory.nb_z_fts = 300
     cfg.memory.send_to_all = True
 
+    cfg.gnn.heads = 1
+
 
 register_config("mem_gnn", mem_gnn_cfg)
