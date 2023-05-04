@@ -46,11 +46,11 @@ optim:
   schedule_patience: 20
   min_lr: 1e-5
 memory:
-  module: priority_queue_v0
+  module: priority_queue_v1
   output_size: 128
   embedding_size: 128
   memory_size: 8
   nb_heads: 8
-  aggregation_technique: max
+  aggregation_technique: weighted
   nb_z_fts: 128
   send_to_all: False
