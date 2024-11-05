@@ -18,6 +18,8 @@ def mem_gnn_cfg(cfg):
     cfg.memory.aggregation_technique = "max"
     cfg.memory.nb_z_fts = 300
     cfg.memory.send_to_all = True
+    cfg.memory.skip_output_proj = False
+    cfg.memory.skip_value_proj = False
 
     cfg.gnn.heads = 1
 

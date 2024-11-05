@@ -44,6 +44,8 @@ class MemoryGNN(torch.nn.Module):
             nb_heads=cfg.memory.nb_heads,
             aggregation_technique=cfg.memory.aggregation_technique,
             nb_z_fts=cfg.memory.nb_z_fts,
+            skip_output_proj=cfg.memory.skip_output_proj,
+            skip_value_proj=cfg.memory.skip_value_proj,
         )
 
         if cfg.gnn.layer_type == "gcnconv":
@@ -119,6 +121,8 @@ class MemoryGNN2(torch.nn.Module):
             nb_heads=cfg.memory.nb_heads,
             aggregation_technique=cfg.memory.aggregation_technique,
             nb_z_fts=cfg.memory.nb_z_fts,
+            skip_output_proj=cfg.memory.skip_output_proj,
+            skip_value_proj=cfg.memory.skip_value_proj,
         )
 
         for _ in range(cfg.gnn.layers_mp):

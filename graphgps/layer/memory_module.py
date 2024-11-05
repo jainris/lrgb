@@ -63,6 +63,8 @@ class PriorityQueueV0(MemoryModule):
         nb_heads: int,
         aggregation_technique: str,
         nb_z_fts: int,
+        skip_output_proj: bool,
+        skip_value_proj: bool,
     ):
         super().__init__()
         self._output_size = output_size
@@ -71,8 +73,18 @@ class PriorityQueueV0(MemoryModule):
         self.nb_heads = nb_heads
         self.aggregation_technique = aggregation_technique
 
-        self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
-        self.output_proj = torch.nn.Linear(nb_z_fts, self._output_size)
+        if skip_value_proj:
+            assert nb_z_fts == embedding_size, \
+                "Expecting embedding size and input size to be the same for skipping value projection"
+            self.value_proj = torch.nn.Identity()
+        else:
+            self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
+        if skip_output_proj:
+            assert embedding_size == output_size, \
+                "Expecting embedding size and output size to be the same for skipping output projection"
+            self.output_proj = torch.nn.Identity()
+        else:
+            self.output_proj = torch.nn.Linear(self._embedding_size, self._output_size)
 
         self.a_1 = torch.nn.Linear(nb_z_fts, self.nb_heads)
         self.a_2 = torch.nn.Linear(nb_z_fts, self.nb_heads)
@@ -189,6 +201,8 @@ class PriorityQueueV1(MemoryModule):
         nb_heads: int,
         aggregation_technique: str,
         nb_z_fts: int,
+        skip_output_proj: bool,
+        skip_value_proj: bool,
     ):
         super().__init__()
         self._output_size = output_size
@@ -197,8 +211,18 @@ class PriorityQueueV1(MemoryModule):
         self.nb_heads = nb_heads
         self.aggregation_technique = aggregation_technique
 
-        self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
-        self.output_proj = torch.nn.Linear(nb_z_fts, self._output_size)
+        if skip_value_proj:
+            assert nb_z_fts == embedding_size, \
+                "Expecting embedding size and input size to be the same for skipping value projection"
+            self.value_proj = torch.nn.Identity()
+        else:
+            self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
+        if skip_output_proj:
+            assert embedding_size == output_size, \
+                "Expecting embedding size and output size to be the same for skipping output projection"
+            self.output_proj = torch.nn.Identity()
+        else:
+            self.output_proj = torch.nn.Linear(self._embedding_size, self._output_size)
 
         self.a_1 = torch.nn.Linear(nb_z_fts, self.nb_heads)
         self.a_2 = torch.nn.Linear(nb_z_fts, self.nb_heads)
@@ -328,6 +352,8 @@ class PriorityQueueV2(MemoryModule):
         nb_heads: int,
         aggregation_technique: str,
         nb_z_fts: int,
+        skip_output_proj: bool,
+        skip_value_proj: bool,
     ):
         super().__init__()
         self._output_size = output_size
@@ -338,11 +364,21 @@ class PriorityQueueV2(MemoryModule):
 
         self.push_proj = torch.nn.Linear(nb_z_fts, 1)
         self.pop_proj = torch.nn.Linear(nb_z_fts, 1)
-        self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
-        self.output_proj = torch.nn.Linear(nb_z_fts, self._output_size)
+        if skip_value_proj:
+            assert nb_z_fts == embedding_size, \
+                "Expecting embedding size and input size to be the same for skipping value projection"
+            self.value_proj = torch.nn.Identity()
+        else:
+            self.value_proj = torch.nn.Linear(nb_z_fts, self._embedding_size)
+        if skip_output_proj:
+            assert embedding_size == output_size, \
+                "Expecting embedding size and output size to be the same for skipping output projection"
+            self.output_proj = torch.nn.Identity()
+        else:
+            self.output_proj = torch.nn.Linear(self._embedding_size, self._output_size)
 
         self.a_1 = torch.nn.Linear(nb_z_fts, self.nb_heads)
-        self.a_2 = torch.nn.Linear(nb_z_fts, self.nb_heads)
+        self.a_2 = torch.nn.Linear(self._embedding_size, self.nb_heads)
 
         self.heads_agg = None
         if self.nb_heads > 1:
@@ -484,6 +520,8 @@ def memory_module_factory(
     nb_heads: int,
     aggregation_technique: str,
     nb_z_fts: int,
+    skip_output_proj: bool,
+    skip_value_proj: bool,
 ):
     if memory_module == "priority_queue_v0":
         return PriorityQueueV0(
@@ -493,6 +531,8 @@ def memory_module_factory(
             nb_heads=nb_heads,
             aggregation_technique=aggregation_technique,
             nb_z_fts=nb_z_fts,
+            skip_output_proj=skip_output_proj,
+            skip_value_proj=skip_value_proj,
         )
     elif memory_module == "priority_queue_v1":
         return PriorityQueueV1(
@@ -502,6 +542,8 @@ def memory_module_factory(
             nb_heads=nb_heads,
             aggregation_technique=aggregation_technique,
             nb_z_fts=nb_z_fts,
+            skip_output_proj=skip_output_proj,
+            skip_value_proj=skip_value_proj,
         )
     elif memory_module == "priority_queue_v2":
         return PriorityQueueV2(
@@ -511,6 +553,8 @@ def memory_module_factory(
             nb_heads=nb_heads,
             aggregation_technique=aggregation_technique,
             nb_z_fts=nb_z_fts,
+            skip_output_proj=skip_output_proj,
+            skip_value_proj=skip_value_proj,
         )
     else:
         raise ValueError("Unsupported memory module: {}".format(memory_module))
@@ -532,7 +576,7 @@ def update_using_memory(
         )  # [N * N, F']
         message_recepients = torch.arange(nb_nodes).repeat(nb_nodes)  # [N * N]
 
-    msgs = torch.concatenate([msgs, read_values], dim=0)
-    index = torch.concatenate([index, message_recepients], dim=0)
+    msgs = torch.cat([msgs, read_values], dim=0)
+    index = torch.cat([index, message_recepients], dim=0)
 
     return msgs, index
