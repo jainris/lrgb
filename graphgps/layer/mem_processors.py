@@ -20,6 +20,8 @@ from torch.nn.functional import leaky_relu
 from torch_geometric.utils import remove_self_loops, add_self_loops, softmax
 from torch_sparse import SparseTensor, set_diag
 from torch_geometric.graphgym.register import register_layer
+from torch_geometric.graphgym.models.layer import LayerConfig
+import torch_geometric.graphgym.register as register
 
 
 class MemoryGCNConv(GCNConv):
@@ -269,6 +271,57 @@ class MemoryGCNConv_2(GCNConv):
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
         raise NotImplementedError
+
+
+class MemoryGCNConv_3(torch.nn.Module):
+    def __init__(self, layer_config: LayerConfig, **kwargs):
+        super().__init__()
+
+        self.has_l2norm = layer_config.has_l2norm
+        has_bn = layer_config.has_batchnorm
+        layer_config.has_bias = not has_bn
+
+        self.layer = MemoryGCNConv_2(
+            in_channels=layer_config.dim_in,
+            out_channels=layer_config.dim_out,
+            bias=layer_config.has_bias,
+            **kwargs
+        )
+
+        layer_wrapper = []
+        if has_bn:
+            layer_wrapper.append(
+                torch.nn.BatchNorm1d(
+                    layer_config.dim_out,
+                    eps=layer_config.bn_eps,
+                    momentum=layer_config.bn_mom,
+                )
+            )
+        if layer_config.dropout > 0:
+            layer_wrapper.append(
+                torch.nn.Dropout(
+                    p=layer_config.dropout, inplace=layer_config.mem_inplace
+                )
+            )
+        if layer_config.has_act:
+            layer_wrapper.append(register.act_dict[layer_config.act])
+        self.post_layer = torch.nn.Sequential(*layer_wrapper)
+
+    def forward(
+        self,
+        batch: Batch,
+        prev_mem_state: Optional[MemoryState] = None,
+    ) -> Tuple[Batch, MemoryState]:
+        batch, mem_state = self.layer(batch, prev_mem_state=prev_mem_state)
+        if isinstance(batch, torch.Tensor):
+            batch = self.post_layer(batch)
+            if self.has_l2norm:
+                batch = F.normalize(batch, p=2, dim=1)
+        else:
+            batch.x = self.post_layer(batch.x)
+            if self.has_l2norm:
+                batch.x = F.normalize(batch.x, p=2, dim=1)
+        return batch, mem_state
 
 
 class MemoryGINEConv(GINEConv):
